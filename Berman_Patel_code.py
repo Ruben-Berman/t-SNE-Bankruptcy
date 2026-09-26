@@ -250,5 +250,18 @@ Zlistfinal_unsorted_df = (ordanon/ordinline).reset_index()
 Zlistfinal_unsorted_df.columns = ['Variable', 'Zratio']
 Zlistfinal_df = Zlistfinal_unsorted_df.sort_values(by='Zratio', ascending=False)
 # %% 
-
+#plot Zlistfinal_df to see where there is a strong drop in Z scores
+plt.figure(figsize=(12,6))
+plt.bar(Zlistfinal_df['Variable'], Zlistfinal_df['Zratio'])
+plt.title("Z ratio of anomaly vs inlier group means")
+plt.xlabel("Variable")
+plt.ylabel("Z ratio (anomaly mean / inlier mean)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
 # %%
+#variables 63, 20 have the exact same Zratio
+#variables 63, 23 have the exact same Zratio
+#variables 20, 38 have the exact same Zratio
+
+#Will continue tomorrow.
