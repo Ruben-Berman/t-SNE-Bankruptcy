@@ -68,6 +68,9 @@ plt.show()
 #Going to vectorize the correlation matrix to 
 # find the highest correlation between predictors
 corr_pairs = corr_matrix.unstack()
+
+
+
 # %%
 #Now dropping the duplicates and sorting the 
 # correlation pairs
@@ -96,6 +99,8 @@ sorted_pairs = corr_pairs.sort_values(kind="quicksort", ascending=False)
 # practice, and it will help us to reduce 
 # the number of variables without losing 
 # too much information.
+# %%
+unique_pairs = corr_matrix.where(np.triu(np.ones(corr_matrix.shape, dtype=bool), k=1)).stack()
 unique_pairs_filtered = unique_pairs[unique_pairs.abs() > 0.95]
 
 #Now we can drop the variables that are highly 
@@ -105,6 +110,7 @@ unique_pairs_filtered = unique_pairs[unique_pairs.abs() > 0.95]
 #We can do this by creating a list of variables 
 # to drop, and then dropping them from the 
 # dataset.
+# %%
 variables_to_drop = []
 unique_pairs_filtered = unique_pairs_filtered.sort_values(ascending=False)
 for pair in unique_pairs_filtered.index:
@@ -114,11 +120,15 @@ for pair in unique_pairs_filtered.index:
 # %%
 #Now we can drop the variables from the dataset
 Xvar_reduced = Xvar.drop(variables_to_drop, axis=1)
-
+# %%
 #New heatmap of the correlation matrix, 
 # to see if we have removed the highly 
 # correlated variables
+# %%
 corr_matrix2 = Xvar_reduced.corr()
+# %%
+
+#PROBLEMATIC
 mask2 = np.triu(np.ones_like(corr_matrix2, dtype=bool))
 sns.heatmap(corr_matrix2, mask=mask2, annot=False, cmap='turbo')
 plt.title("Correlation Matrix after dropping highly correlated variables")
@@ -264,4 +274,4 @@ plt.show()
 #variables 63, 23 have the exact same Zratio
 #variables 20, 38 have the exact same Zratio
 
-#Will continue tomorrow.
+Xvar_reduced
