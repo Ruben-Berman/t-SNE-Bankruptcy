@@ -1,3 +1,4 @@
+#START OF CODE APPENDIX MADE BY RUBEN BERMAN 45735476============================================================================================================================================================
 """
 #Hello this is being written by Ruben Berman 45735476 to test if this works.
 #You can use this code to test if the code works.
@@ -270,8 +271,221 @@ plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
 # %%
-#variables 63, 20 have the exact same Zratio
-#variables 63, 23 have the exact same Zratio
+#Looking at the plot above:
+#variables Fixed Assets to Assets, and Current Ratio have the exact same Zratio
+#variables Net Value Growth Rate, and Revenue per person have the exact same Zratio
+#BUT... Revenue Per Share (Yuan ¥) is almost the exact same
 #variables 20, 38 have the exact same Zratio
 
-Xvar_reduced
+
+#We have catched these variables
+#Let's do swarm plots to see if they are indeed almost identical
+# %%
+identical_vars1 = df2[[' Fixed Assets to Assets', ' Current Ratio']].copy()
+identical_vars1_corr = identical_vars1.corr()
+
+identical_vars1.max()
+#location of maximum value in the dataframe
+identical_vars1.idxmax()
+
+#Fixed Assets to Assets at 2344+1=2345
+max(Xvar_reduced.iloc[2344, :])
+
+((Xvar_reduced.iloc[2344, :]).sort_values(ascending=False)).head(10)
+#The abnormally high values 
+# in row 2344 are here.
+"""Fixed Assets to Assets             8.320000e+09
+Total Asset Growth Rate            7.080000e+09
+Allocation rate per person         3.480000e+09
+Cash/Current Liability             2.090000e+09
+Cash Turnover Rate                 1.300000e+09
+Average Collection Days            1.370000e+08
+Inventory Turnover Rate (times)    9.550000e+07"""
+
+max(Xvar_reduced.iloc[2499, :])
+#value is 7130000000.0 which again makes no sense
+#When trying to see if there any of other
+#strange values in the billions
+(Xvar_reduced.iloc[2499, :].sort_values(ascending=False)).head(10)
+#The abnormally high values 
+# in row 2499 are here.
+"""Total Asset Growth Rate                7.130000e+09
+Current Ratio                          2.750000e+09
+Cash Turnover Rate                     1.590000e+09
+Current Asset Turnover Rate            6.740000e+08
+Quick Asset Turnover Rate              1.320000e+08
+Inventory Turnover Rate (times)        1.910000e+07"""
+
+
+
+
+#So if we put the two subsets together we see which
+#Variables we have in common.
+
+"""In common (both rows):
+
+Total Asset Growth Rate
+Cash Turnover Rate
+Inventory Turnover Rate (times)
+
+
+Only in row 2344:
+
+Fixed Assets to Assets
+Allocation rate per person
+Cash/Current Liability
+Average Collection Days
+
+
+Only in row 2499:
+
+Current Ratio
+Current Asset Turnover Rate
+Quick Asset Turnover Rate"""
+
+# %%
+#For those variables in common
+#Let's do a matrix scatter plot to see if they are indeed almost identical
+common_Xvar = Xvar_reduced[[' Total Asset Growth Rate', ' Cash Turnover Rate', ' Inventory Turnover Rate (times)']]
+sns.pairplot(common_Xvar,corner=True, diag_kind='kde', plot_kws={'alpha':0.5})
+plt.show()
+
+# Cash Turnover Rate', ' Inventory Turnover Rate (times)
+# are extremely skewed to the right
+#Total asset growth rate is bimodal.
+
+#Cash Turnover Rate and Inventory Turnover Rate (times) are almost identical, 
+# but Cash Turnover decays slower.
+
+#Overall it tells us with the 3 key variables that
+# cause all 3 models to flag as outliers, that majority
+# of the outliers are caused by extremely high values 
+# in Total Asset Growth Rate, Cash Turnover Rate, 
+# and Inventory Turnover Rate (times) which occur at a very small
+# frequency.
+
+#But there is still an issue an 
+# Asset growth rate of 9 billion makes no sense
+# %%
+common_Xvar[' Total Asset Growth Rate'].sort_values(ascending=False).head()
+#
+len(common_Xvar[common_Xvar[' Total Asset Growth Rate']>1])
+#6017 entries out of the 6819 entries have a 
+# Total Asset Growth Rate greater than 1, 
+# which is 88.2% of the dataset. 
+# This is a huge problem, and 
+# indicates that there is a serious i
+# ssue with the data quality.
+# %%
+len(common_Xvar[common_Xvar[' Cash Turnover Rate']>1])
+
+#4239 entries out of 6819 entries have a 
+# Cash Turnover rate of more than 1.
+# But Cash Turnover rate is not a percentage
+# So it is pretty normal for such massive values
+# To exist here since it is potentially massive banks
+#It is the Taiwanese Stock Exhange listed companies
+
+#It is 2 clusters/groups
+#Multi-national Firms
+#Small Medium Enterprises/ domestic corporates
+
+#But the majority based on the sea born plot are smaller
+#entities
+
+
+#And for the Inventory Turnover Rate
+#Logically it is the same underlying principle of
+#Cash turnover rate, but just in the context of physcially held
+#goods/services
+# %%
+
+
+#For Cash/Current Liability a slightly different story is told
+# 3rd quartile is a percentage
+#We can see again how many values are astronimically high
+len(Xvar_reduced[Xvar_reduced[" Cash/Current Liability"]>1])
+
+#Only 46 values above 100% this can be winsorised
+#So about 0.006% are what will be changed, fixing
+#dramatic skewness
+#Let's winsorise now
+
+
+
+# %%
+CCL = Xvar_reduced[" Cash/Current Liability"]
+CCL[CCL>0.50].sort_values(ascending=False)
+# %%
+#We see a progression from 74.5% then 1.00000 (100%) to amounts
+#In the billions
+
+
+#NOW WE BEGIN TREATMENT PHASES------------------
+CCLMAX = 1
+CCL_winsorized = CCL.clip(upper=CCLMAX)
+# %%
+Xvar_reduced_win = Xvar_reduced.copy()
+Xvar_reduced_win = Xvar_reduced_win.drop([' Cash/Current Liability'], axis=1)
+
+
+Xvar_reduced_win['Cash/Current Liability (winsorised)'] = CCL_winsorized
+
+
+# %%
+common_Xvar[' Total Asset Growth Rate'].sort_values(ascending=False).head()
+TAGR = common_Xvar[' Total Asset Growth Rate']
+
+from sklearn.preprocessing import QuantileTransformer
+qt = QuantileTransformer(n_quantiles=100,random_state=45735476)
+TAGRqt = pd.DataFrame(qt.fit_transform(TAGR.to_frame()),
+                      columns=["TAGR (QT)"],
+                      index=TAGR.index)
+
+
+Xvar_win_qt = Xvar_reduced_win.copy()
+Xvar_win_qt['TAGR (Quantile Transformed)'] = TAGRqt
+#END OF CODE APPENDIX MADE BY RUBEN BERMAN 45735476============================================================================================================================================================
+
+
+
+#Due to the Clustering seen in the 
+#Cash Turnover rate
+# %%
+(corr_matrix2[' Cash Turnover Rate'].drop([' Cash Turnover Rate'],axis=0)).sort_values(ascending=False)
+# %%
+#Plot now Quick Asset Turnover and Cash Turnover Rate
+plt.scatter(y=Xvar_win_qt[' Cash Turnover Rate'],x=Xvar_win_qt[' Quick Asset Turnover Rate'])
+plt.xlabel("Quick Asset Turnover Rate")
+plt.ylabel("Cash Turnover Rate")
+plt.show()
+# %%
+
+from sklearn.cluster import KMeans
+kmeans2 = KMeans(n_clusters=2, random_state=3, n_init=20).fit(Xvar_win_qt[[' Cash Turnover Rate',' Quick Asset Turnover Rate']])
+fig, ax = plt.subplots(figsize=(8, 8))
+ax.scatter(y=Xvar_win_qt[' Cash Turnover Rate'], x=Xvar_win_qt[' Quick Asset Turnover Rate'], c=kmeans2.labels_)
+ax.set_title("K-Means Clustering Results with K=2")
+plt.show()
+# %%
+Xvar_win_qt.drop([' Quick Asset Turnover Rate'],axis=1)
+Xvar_win_qt["Quick Asset Turnover Rate (encoded)"] = kmeans2.labels_
+
+
+
+
+
+# %%
+#Clearly the one cluster is problem matic (purple)
+#there are an overwhelming amount of zeroes in 
+#Quick asset ratio, so let's apply KNN
+#for just these 2 variables (Quick and Cash Turnover)
+
+
+
+# %%
+
+# %%
+
+
+# %%
