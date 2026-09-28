@@ -214,6 +214,13 @@ plt.show()
 # %%
 seed = 45735476
 qt = QuantileTransformer(n_quantiles=100,random_state=seed)
+
+
+
+
+
+#THIS IS THE DATA THAT WILL BE USED
+#FOR THE T-SNE AND PCA
 Xvarqt = pd.DataFrame(qt.fit_transform(Xvar_scaled),
                       columns=Xvar_scaled.columns,
                       index=Xvar_scaled.index)
