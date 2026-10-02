@@ -303,12 +303,13 @@ Yvar.to_csv('Y_Clean.csv')
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
 
+Xvarqt_array = np.array(Xvarqt)
 from sklearn.manifold import TSNE
-TSNE(n_components=2, perplexity=30.0, 
+X_reduced = TSNE(n_components=2, perplexity=30.0, 
      early_exaggeration=12.0, 
      learning_rate='auto', 
      max_iter=1000, 
-     n_iter_without_progress=300, 
+     n_iter_without_progress=30, 
      min_grad_norm=1e-07, 
      metric='euclidean', 
      metric_params=None, 
@@ -317,13 +318,15 @@ TSNE(n_components=2, perplexity=30.0,
      random_state=None, 
      method='barnes_hut', 
      angle=0.5, 
-     n_jobs=None)
+     n_jobs=None).fit_transform(Xvarqt_array)
+
+
+
+#FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
 #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
 
-X_embedded = TSNE(n_components=2, learning_rate='auto',
-                  init='random', perplexity=3).fit_transform(X)
-X_embedded.shape
 
+# %%
 
 
 
