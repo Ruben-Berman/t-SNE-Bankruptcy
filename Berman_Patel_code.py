@@ -295,6 +295,9 @@ print(f"{n_ratios} of {len(Xvar.columns)} predictors are ratios ({n_ratios/len(X
 Xvarqt = pd.DataFrame(qt.fit_transform(Xvar_scaled),
                       columns=Xvar_scaled.columns,
                       index=Xvar_scaled.index)
+#Export the data
+Xvarqt.to_csv('X_Clean.csv')
+Yvar.to_csv('Y_Clean.csv')
 # %%
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
