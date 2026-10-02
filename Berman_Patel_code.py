@@ -8,107 +8,151 @@ git push                                  # 4. upload to GitHub
 """
 # %%
 #All library imports
-import pandas as pd #for csv importation
-import seaborn as sns #for heatmap, pairplot and scatter
-import matplotlib.pyplot as plt #for label
-import numpy as np #For numerical operations
-#From the pyod library I discovered on a LinkedIn post
-from pyod.models.iforest import IForest #Good outlier detection model
-from pyod.models.ecod import ECOD #Also good, uses an ECDF
-from pyod.models.copod import COPOD #Like ECDF but uses a copula
-from sklearn.preprocessing import QuantileTransformer, StandardScaler #For scaling variables with extreme outliers
-from sklearn.cluster import KMeans #For variables where distinct clusters were identified and binary encoding was done
+import pandas as pd #Data frames and CSV importation
+import seaborn as sns #Heatmaps, pairplots and histograms
+import matplotlib.pyplot as plt #Plot titles, labels and displaying figures
+import numpy as np #Numerical operations and the triangular heatmap masks
+#Outlier detection models from the pyod library (found via a LinkedIn post)
+from pyod.models.iforest import IForest #Isolation Forest: isolates outliers using random splits
+from pyod.models.ecod import ECOD #Scores tail values using each variable's empirical CDF (ECDF)
+from pyod.models.copod import COPOD #Like ECOD, but combines the variables with a copula
+from sklearn.preprocessing import QuantileTransformer, StandardScaler #Rank-based and standard scaling
+from sklearn.cluster import KMeans #K-means clustering (earlier approach to the clustered variables)
+from matplotlib.colors import LinearSegmentedColormap #Custom colour map for the correlation heatmaps
+from matplotlib.ticker import FuncFormatter #Shows billion-scale axes as "2bn" instead of "1e10"
 
 # %%
-#Data importation with pandas
+#House style shared by every figure in the report
+SURFACE = '#fcfcfb' #Figure background
+INK = '#0b0b0b' #Titles
+INK_2 = '#52514e' #Axis labels
+MUTED = '#898781' #Tick labels and source notes
+GRID = "#e3e2db" #Gridlines
+BLUE = "#386399" #Single colour for histograms and scatter points
+SOURCE = 'Source: Taiwan Economic Journal, 1999-2009'
+
+plt.rcParams.update({
+    'figure.facecolor': SURFACE, 'axes.facecolor': SURFACE, 'savefig.facecolor': SURFACE,
+    'figure.dpi': 120, 'savefig.dpi': 300,
+    'font.family': 'sans-serif', 'font.sans-serif': ['Segoe UI', 'DejaVu Sans'],
+    'text.color': INK, 'axes.titlecolor': INK, 'axes.labelcolor': INK_2,
+    'axes.titlesize': 13, 'axes.titleweight': 'semibold', 'axes.titlelocation': 'left', 'axes.titlepad': 12,
+    'axes.labelsize': 10, 'xtick.color': MUTED, 'ytick.color': MUTED,
+    'xtick.labelsize': 9, 'ytick.labelsize': 9,
+    'axes.edgecolor': '#c3c2b7', 'axes.linewidth': 0.8,
+    'axes.spines.top': False, 'axes.spines.right': False,
+    'axes.grid': True, 'axes.grid.axis': 'y', 'grid.color': GRID, 'grid.linewidth': 0.6,
+    'axes.axisbelow': True, 'legend.frameon': False,
+})
+
+#Axis formatter for the corrupted, billion-scale variables
+BILLIONS = FuncFormatter(lambda v, _: f"{v/1e9:.0f}bn")
+
+#Diverging colour map for correlations: red = negative, grey = none, blue = positive
+CORR_CMAP = LinearSegmentedColormap.from_list('corr', ['#a32d2c', '#e34948', '#f0efec', '#2a78d6', '#104281'])
+
+# %%
+#Import the Taiwanese bankruptcy dataset
 df = pd.read_csv('data.csv')
 # %%
-"""
-#Some instructions on Git operations
-git pull                                   # get partner's changes
-git add .                                  # stage all your changes
-git commit -m "describe what you changed"
-git push                                   # upload to GitHub
-"""
-
-# %%
-#Note: Several correlation in predictors
-#Copying the dataset
+#Work on a copy so the original df stays untouched
 df2 = df.copy()
-#Net Income Flag has nothing but 1's
+# %%
+#Net Income Flag is 1 for every company, so it has no variation
 print(df[" Net Income Flag"])
-#Net Income Flag was removed, and Response variable Bankrupt
+#Predictors: drop Net Income Flag (no variation) and Bankrupt? (the response)
 Xvar = df2.drop([" Net Income Flag","Bankrupt?"], axis=1)
-
-# Yvar is the target variable, 
-# which is the variable we want to predict. 
+# %%
+#Response variable: 1 = bankrupt, 0 = not bankrupt
 Yvar = df2["Bankrupt?"]
+# %%
 
-
-#Count parameters with billions
-Thres = 1e9
+#Every genuine value in this dataset is rescaled to 0-1, and no value lies
+#between 1 and 583,000, so anything >= 1000 is a corrupted entry.
+#Count the corrupted values in each variable
 Xbil = (Xvar>=1000).sum()
+# %%
+#Sort variables from most to fewest corrupted values
 Xbil_sort = Xbil.sort_values(ascending=False)
+# %%
+#Proportion of rows that are corrupted in each variable (4 decimal places)
 Xbil_summary = (round(Xbil_sort/(len(Xvar)),4))
 # %%
-#For the variables that have values in the billions
-#over 50%
-#We will now plot first of all and see how they look
+
+#Variables with corrupted values in 50% or more of rows:
+#too many to impute, so these are binary encoded further down
 print(Xbil_summary[Xbil_summary>=0.5])
-
+# %%
+#Spearman is rank based, so the corrupted values cannot distort it (explained in report)
 corr_matrix = Xvar.corr('spearman')
-corr_matrix[' Total Asset Growth Rate']
-corr_matrix[corr_matrix[' Cash Turnover Rate'] != 1] 
-# %%
-print((corr_matrix[corr_matrix[' Cash Turnover Rate'] != 1]).unstack())
+
 
 # %%
-sns.scatterplot(x=Xvar[' Cash Turnover Rate'],y=Xvar[' ROA(C) before interest and depreciation before interest'])
-plt.show()
-
-# %%
-#Original correlation matrix of the 
-# predictors, to see if there are any 
-# highly correlated variables. 
-# This is important because 
-# highly correlated variables 
-# can cause problems.
-
-
+#The 3 variables most correlated with Total Asset Growth Rate
+#(absolute correlation, excluding its correlation with itself)
 topvars1 = (corr_matrix[' Total Asset Growth Rate'].drop(' Total Asset Growth Rate').abs()).sort_values(ascending=False).head(3)
 
-sns.pairplot(Xvar[[' Total Asset Growth Rate'] + list(topvars1.index)], corner=True, diag_kind='kde', plot_kws={'alpha': 0.5})
+#Pairplot of Total Asset Growth Rate against those 3 variables
+g = sns.pairplot(Xvar[[' Total Asset Growth Rate'] + list(topvars1.index)], corner=True, diag_kind='kde',
+                 plot_kws={'alpha': 0.4, 's': 12, 'color': BLUE, 'edgecolor': 'none'},
+                 diag_kws={'color': BLUE, 'fill': True})
+g.axes[-1, 0].xaxis.set_major_formatter(BILLIONS)
+g.figure.suptitle("Total Asset Growth Rate against its three most correlated predictors",
+                  x=0.02, ha='left', fontsize=13, fontweight='semibold')
+g.figure.subplots_adjust(top=0.93)
+g.figure.text(0.02, 0.005, SOURCE, fontsize=8, color=MUTED)
 plt.show()
 # %%
-topvars2 =  (corr_matrix[' Cash Turnover Rate'].drop(' Cash Turnover Rate')).sort_values(ascending=False).head(3)
+#The 3 variables most correlated with Cash Turnover Rate (excluding itself)
+topvars2 =  (corr_matrix[' Cash Turnover Rate'].drop(' Cash Turnover Rate').abs()).sort_values(ascending=False).head(3)
 
-sns.pairplot(Xvar[[' Cash Turnover Rate'] + list(topvars2.index)], corner=True, diag_kind='kde', plot_kws={'alpha': 0.5})
+#Pairplot of Cash Turnover Rate against those 3 variables
+g = sns.pairplot(Xvar[[' Cash Turnover Rate'] + list(topvars2.index)], corner=True, diag_kind='kde',
+                 plot_kws={'alpha': 0.4, 's': 12, 'color': BLUE, 'edgecolor': 'none'},
+                 diag_kws={'color': BLUE, 'fill': True})
+g.axes[-1, 0].xaxis.set_major_formatter(BILLIONS)
+g.figure.suptitle("Cash Turnover Rate against its three most correlated predictors",
+                  x=0.02, ha='left', fontsize=13, fontweight='semibold')
+g.figure.subplots_adjust(top=0.93)
+g.figure.text(0.02, 0.005, SOURCE, fontsize=8, color=MUTED)
 plt.show()
+# %%
+#Histograms of the three variables that are over 50% corrupted,
+#with the corrupted share worked out in each title
+for var in [' Total Asset Growth Rate', ' Cash Turnover Rate', ' Research and development expense rate']:
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    sns.histplot(Xvar[var], bins=50, color=BLUE, edgecolor=SURFACE, linewidth=0.8, ax=ax)
+    share = (Xvar[var] >= 1000).mean()
+    ax.set_title(f"{var.strip()}: {share:.0%} of entries are corrupted")
+    ax.xaxis.set_major_formatter(BILLIONS)
+    ax.set_xlabel("Reported value (genuine values lie between 0 and 1, inside the first bar)")
+    ax.set_ylabel("Number of companies")
+    plt.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.text(0.01, 0.01, SOURCE, fontsize=8, color=MUTED)
+    plt.show()
 # %%
 
-sns.histplot(Xvar[' Total Asset Growth Rate'])
-plt.show()
-
-# %%
-sns.histplot(Xvar[' Cash Turnover Rate'])
-plt.show()
-# %%
-Xvar['TAGR (ecode)'] = (Xvar[' Total Asset Growth Rate']>1).astype(int)
+#Too many corrupted values to impute, so rather than throw these variables out,
+#keep a binary flag: 1 = corrupted value, 0 = genuine value
+Xvar['TAGR (encode)'] = (Xvar[' Total Asset Growth Rate']>1).astype(int)
 Xvar['CTR (encode)'] = (Xvar[' Cash Turnover Rate']>1).astype(int)
 Xvar['R&D (encode)'] = (Xvar[' Research and development expense rate']>1).astype(int)
 
 # %%
 Xvar2 = Xvar.copy()
+#Drop the original versions now that their binary flags exist
 Xvar2 = Xvar2.drop([' Cash Turnover Rate',' Total Asset Growth Rate',' Research and development expense rate'],axis=1)
 # %%
+#Working copy for the imputation and winsorising steps
 Xvar3 = Xvar2.copy()
 
 # %%
-#These ones we will apply KNN
+#Variables with 15-50% corrupted values (the first KNN candidates, output below)
 Xbil_summary[(Xbil_summary<0.5) & (Xbil_summary>0.15)]
 # %%
 
 from sklearn.impute import KNNImputer
+#KNN imputer: fills each missing value with the average of the 5 most similar companies
 imputer = KNNImputer(n_neighbors=5)
 
 """Research and development expense rate    0.4375
@@ -119,108 +163,135 @@ Current Asset Turnover Rate              0.1607
 Fixed Assets Turnover Frequency          0.1565"""
 
 # %%
+#Variables with 1.5-50% corrupted values: these get KNN imputation
 intermediate_vars = list(Xbil_summary[(Xbil_summary >= 0.015) & (Xbil_summary < 0.5)].index)
 
+#Turn their corrupted values (> 1) into NaN so the imputer can fill them
 Xvar3[intermediate_vars] = Xvar3[intermediate_vars].mask(Xvar3[intermediate_vars] > 1)
+#Spearman correlations recomputed without the corrupted values (NaN pairs are skipped)
 corr_nan = Xvar3.corr('spearman')
+#Variables with no corrupted values, the only ones allowed as KNN neighbours
 clean_vars = Xvar3.columns[(Xvar3 <= 1).all()]
 
 for var in intermediate_vars:
+    #The 4 clean variables most correlated with this variable
     topvars = corr_nan.loc[clean_vars, var].abs().sort_values(ascending=False).head(4)
     neighbour_vars = list(topvars.index)
+    #Record which neighbours were used for each variable
     print(var, '<-', neighbour_vars)
+    #Impute using only this variable and its 4 neighbours
     filled = imputer.fit_transform(Xvar3[[var] + neighbour_vars])
+    #Column 0 is the imputed variable itself
     Xvar3[var] = filled[:, 0]
 # %%
-#Now for the rest, we will apply winsorisation on
+#Variables with under 1.5% corrupted values: few enough to winsorise
 lower_vars = list(Xbil_summary[(Xbil_summary < 0.015) & (Xbil_summary > 0)].index)
 # %%
 for var in lower_vars:
+    #The genuine (0-1) values of this variable
     clean = Xvar3[var][Xvar3[var] <= 1]
+    #Cap everything at the 99th percentile of the genuine values
     Xvar3[var] = Xvar3[var].clip(upper=clean.quantile(0.99))
 # %%
+#Cleaned dataset: every corrupted value has now been flagged, imputed or winsorised
 Xvar4 = Xvar3.copy()
 # %%
 
+#Spearman correlation matrix of the cleaned data
 corr_matrix = Xvar4.corr('spearman')
 
-#Let's visualise the correlation matrix 
-# with a heatmap, 
-# that is triangular, 
-# since the correlation 
-# Matrix is symmetric, 
-# it is redundant to see
-# the upper triangle.
+#Heatmap of the correlation matrix. Only the lower triangle is shown,
+#since the matrix is symmetric and the upper triangle repeats it
 mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
-sns.heatmap(corr_matrix, mask=mask, annot=False, cmap='turbo')
+fig, ax = plt.subplots(figsize=(12, 10))
+sns.heatmap(corr_matrix, mask=mask, cmap=CORR_CMAP, vmin=-1, vmax=1, center=0, square=True,
+            xticklabels=1, yticklabels=1, cbar_kws={'label': 'Spearman correlation', 'shrink': 0.6}, ax=ax)
+ax.grid(False)
+ax.tick_params(labelsize=5)
+ax.set_title(f"Spearman correlation between all {len(corr_matrix)} predictors after cleaning")
+plt.tight_layout(rect=(0, 0.03, 1, 1))
+fig.text(0.01, 0.01, SOURCE, fontsize=8, color=MUTED)
 plt.show()
 
-#Therefore because of the asymmetric values in
-#Total Asset Growth Rate & Cash Turnover Rate
-#We can apply K means clustering and encode them
-
 
 # %%
-#Because we do not want to lose 
-# too much information, we will 
-# only drop variables that have 
-# a correlation of 0.95 or higher 
-# with another variable. 
+#To avoid losing too much information, a variable is only dropped
+#when its absolute correlation with another variable is above 0.95
 
+#Keep each pair once (upper triangle, diagonal excluded) as a list of pairs
 unique_pairs = corr_matrix.where(np.triu(np.ones(corr_matrix.shape, dtype=bool), k=1)).stack()
+#Pairs with an absolute correlation above 0.95
 unique_pairs_filtered = unique_pairs[unique_pairs.abs() > 0.95]
 
-#Now we can drop the variables that are highly 
-# correlated with other variables, and keep only
-# one of them. For example, if A and B have a 
-# correlation of 0.9, we can drop B and keep A.
-#We can do this by creating a list of variables 
-# to drop, and then dropping them from the 
-# dataset.
+#From each highly correlated pair, keep one variable and drop the other.
+#E.g. if A and B have a correlation of 0.97, keep A and drop B
 # %%
 variables_to_drop = []
+#Start from the strongest correlations
 unique_pairs_filtered = unique_pairs_filtered.sort_values(ascending=False)
 for pair in unique_pairs_filtered.index:
     var1, var2 = pair
+    #Only drop var2 if neither variable in the pair is already being dropped
     if var1 not in variables_to_drop and var2 not in variables_to_drop:
         variables_to_drop.append(var2)
 # %%
+#List of the dropped variables
 print(pd.DataFrame(variables_to_drop))
 #29/94 variables dropped
 # %%
-# = 65 variables now
+#Remove the highly correlated variables (30/94= 64 variables now)
 Xvar_reduced = Xvar4.drop(variables_to_drop, axis=1)
 
+#Split binary flag columns from continuous columns, so they can be scaled separately
 flag_cols = [c for c in Xvar_reduced.columns if c.endswith('(encode)')]
 cont_cols = Xvar_reduced.columns.drop(flag_cols)
 # %%
+#Copy of the reduced data for scaling
 Xvar_scaled = Xvar_reduced.copy()
 
 # %%
-#New heatmap of the correlation matrix, 
-# to see if we have removed the highly 
-# correlated variables
-
+#Heatmap of the reduced data, to check the highly
+#correlated variables have been removed
 corr_matrix2 = Xvar_reduced.corr()
 
 mask2 = np.triu(np.ones_like(corr_matrix2, dtype=bool))
-sns.heatmap(corr_matrix2, mask=mask2, annot=False, cmap='turbo')
-plt.title("Correlation Matrix after dropping highly correlated variables")
+fig, ax = plt.subplots(figsize=(12, 10))
+sns.heatmap(corr_matrix2, mask=mask2, cmap=CORR_CMAP, vmin=-1, vmax=1, center=0, square=True,
+            xticklabels=1, yticklabels=1, cbar_kws={'label': 'Pearson correlation', 'shrink': 0.6}, ax=ax)
+ax.grid(False)
+ax.tick_params(labelsize=6)
+ax.set_title(f"Correlation between the {len(corr_matrix2)} predictors kept after removing pairs above 0.95")
+plt.tight_layout(rect=(0, 0.03, 1, 1))
+fig.text(0.01, 0.01, SOURCE, fontsize=8, color=MUTED)
 plt.show()
 
-#Overall very good, some correlations though entailing
-#Duplicate variables of different official names,
-#Which is can investigate the following way:
+#Overall much better, although some strong correlations remain between
+#variables that look like duplicates under different names
 # %%
+#Fixed random seed so the results are reproducible
 seed = 45735476
-qt = QuantileTransformer(n_quantiles=100,random_state=seed)
+#Quantile transformer: rank-based scaling, so skewed variables
+#and extreme values cannot dominate the distances
+qt = QuantileTransformer(n_quantiles=100,random_state=seed,output_distribution='normal')
 
-
-
+# %%
+non_ratios = [
+    ' Net Value Per Share (B)', ' Net Value Per Share (A)', ' Net Value Per Share (C)',
+    ' Persistent EPS in the Last Four Seasons', ' Cash Flow Per Share',
+    ' Revenue Per Share (Yuan ¥)', ' Operating Profit Per Share (Yuan ¥)',
+    ' Per Share Net profit before tax (Yuan ¥)',
+    ' Revenue per person', ' Operating profit per person', ' Allocation rate per person',
+    ' Average Collection Days', ' No-credit Interval',
+    ' Liability-Assets Flag',
+]
+assert all(c in Xvar.columns for c in non_ratios)
+n_ratios = len(Xvar.columns) - len(non_ratios)
+print(f"{n_ratios} of {len(Xvar.columns)} predictors are ratios ({n_ratios/len(Xvar.columns):.0%})")
+# %%
 
 
 #THIS IS THE DATA THAT WILL BE USED
-#FOR THE T-SNE AND PCA
+#FOR THE t-SNE AND PCA
 Xvarqt = pd.DataFrame(qt.fit_transform(Xvar_scaled),
                       columns=Xvar_scaled.columns,
                       index=Xvar_scaled.index)
