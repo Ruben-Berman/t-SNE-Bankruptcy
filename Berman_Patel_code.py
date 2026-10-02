@@ -16,6 +16,7 @@ import numpy as np #Numerical operations and the triangular heatmap masks
 from pyod.models.iforest import IForest #Isolation Forest: isolates outliers using random splits
 from pyod.models.ecod import ECOD #Scores tail values using each variable's empirical CDF (ECDF)
 from pyod.models.copod import COPOD #Like ECOD, but combines the variables with a copula
+from sklearn.manifold import TSNE
 from sklearn.preprocessing import QuantileTransformer, StandardScaler #Rank-based and standard scaling
 from sklearn.cluster import KMeans #K-means clustering (earlier approach to the clustered variables)
 from matplotlib.colors import LinearSegmentedColormap #Custom colour map for the correlation heatmaps
@@ -302,8 +303,111 @@ Yvar.to_csv('Y_Clean.csv')
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
 
+from sklearn.manifold import TSNE
+TSNE(n_components=2, perplexity=30.0, 
+     early_exaggeration=12.0, 
+     learning_rate='auto', 
+     max_iter=1000, 
+     n_iter_without_progress=300, 
+     min_grad_norm=1e-07, 
+     metric='euclidean', 
+     metric_params=None, 
+     init='pca', 
+     verbose=0, 
+     random_state=None, 
+     method='barnes_hut', 
+     angle=0.5, 
+     n_jobs=None)
+#https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
+
+X_embedded = TSNE(n_components=2, learning_rate='auto',
+                  init='random', perplexity=3).fit_transform(X)
+X_embedded.shape
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#. Given input data 𝑥=(﷐𝑥﷮1﷯,﷐𝑥﷮2﷯,…,﷐𝑥﷮𝑛﷯); choose perplexity k, learning rate 𝜂 and momentum 𝛼﷐𝑙﷯
+#Set  perplexity to 5 learning rate (eta) = 0.001
+PERPLEX, ETA = 5, 0.001
+# %%
+rng = np.random.default_rng(seed=seed) #Random number generator for reproducibility
+indices = rng.choice(len(Xvarqt), size=len(Xvarqt)//8, replace=False) #Randomly shuffle the indices of the dataset
+Random_Xvarqt = Xvarqt.iloc[indices,:] #Randomly shuffle the dataset
+# %%
+#vector X_i = (X_i1, X_i2, ..., X_i,64);
+#Function to compute the pairwise Euclidean distances between all points in the dataset
+def TSNE_ALGO_FASTER(Xvarqt, PERPLEX):
+    X = Xvarqt.to_numpy() #Convert once: indexing a NumPy array is far faster than .iloc
+    n = len(X)
+    p_j_given_i, Distance, Numerator = np.zeros((n, n)), np.zeros((n, n)), np.zeros((n, n))
+
+    #Step 1: distances. d(i,j) = d(j,i), so only compute the upper triangle and copy it
+    for i in range(n):
+        for j in range(i + 1, n):
+            Distance[i, j] = np.sqrt(np.sum((X[i] - X[j])**2))
+            Distance[j, i] = Distance[i, j]
+
+    #Step 2: conditional probabilities, one row (one point i) at a time
+    for i in range(n):
+        Denominator = 0 #Reset for every i: each point has its own denominator
+        for j in range(n):
+            if i != j:
+                Numerator[i, j] = np.exp(-Distance[i, j]**2 / (2 * PERPLEX**2))
+                Denominator += Numerator[i, j]
+        for j in range(n):
+            if i != j:
+                p_j_given_i[i, j] = Numerator[i, j] / Denominator
+    return p_j_given_i
+
+# %%
+P_MATRIX = TSNE_ALGO_FASTER(Xvarqt, PERPLEX)
+# %%
+
+
+
+
+
+
+# %%
+def TSNE_ALGO(Xvarqt, PERPLEX, ETA):
+    indices_i = np.arange(len(Xvarqt))
+    indices_j = np.arange(len(Xvarqt))
+    p_j_given_i, Distance, Numerator = np.zeros((len(Xvarqt), len(Xvarqt))), np.zeros((len(Xvarqt), len(Xvarqt))), np.zeros((len(Xvarqt), len(Xvarqt)))
+    Denominator = 0
+    for i in indices_i:
+           for j in indices_j:
+            if i != j:
+                Xi = Xvarqt.iloc[i,:]
+                Xj = Xvarqt.iloc[j,:]
+                #Compute the Euclidean distance between the two points
+                Distance[i, j] = np.linalg.vector_norm(Xi - Xj)
+                Numerator[i, j] = np.exp(-Distance[i, j]**2 / (2 * PERPLEX**2))
+                Denominator += Numerator[i, j]
+    for i in indices_i:
+        for j in indices_j:
+            if i != j:
+                p_j_given_i[i, j] = Numerator[i, j] / Denominator
+    return p_j_given_i
+
+# %%
+
+
+
 #==============================================================================================================================================================================================================================================================================================================================================================================
 #MUHAMMAD'S PCA
 
 
 #=============================================================================================================================================================================================================================================================================================================================================================================
+
+# %%
