@@ -303,7 +303,6 @@ Xvarqt[cont_cols] = qt.fit_transform(Xvar_scaled[cont_cols])
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
 
-<<<<<<< HEAD
 Xvarqt_array = np.array(Xvarqt)
 from sklearn.manifold import TSNE
 k=150 #perplexity value, can be changed to see how it affects the results
@@ -356,31 +355,6 @@ plt.show()
 
 #FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
 #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
-=======
-# Xvarqt_array = np.array(Xvarqt)
-# from sklearn.manifold import TSNE
-# X_reduced = TSNE(n_components=2, perplexity=30.0,
-#      early_exaggeration=12.0,
-#      learning_rate='auto',
-#      max_iter=1000,
-#      n_iter_without_progress=30,
-#      min_grad_norm=1e-07,
-#      metric='euclidean',
-#      metric_params=None,
-#      init='pca',
-#      verbose=0,
-#      random_state=None,
-#      method='barnes_hut',
-#      angle=0.5,
-#      n_jobs=None).fit_transform(Xvarqt_array)
-#
-#
-#
-# #FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
-# #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
-#
-
->>>>>>> 079669694ef375dfcc7e993920c19c2258c3fac9
 # %%
 
 
