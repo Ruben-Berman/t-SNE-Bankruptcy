@@ -119,18 +119,21 @@ g.figure.text(0.02, 0.005, SOURCE, fontsize=8, color=MUTED)
 plt.show()
 # %%
 #Histograms of the three variables that are over 50% corrupted,
-#with the corrupted share worked out in each title
-for var in [' Total Asset Growth Rate', ' Cash Turnover Rate', ' Research and development expense rate']:
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+#with the corrupted share worked out in each title, side by side in one figure
+fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
+for ax, var in zip(axes, [' Total Asset Growth Rate', ' Cash Turnover Rate', ' Research and development expense rate']):
     sns.histplot(Xvar[var], bins=50, color=BLUE, edgecolor=SURFACE, linewidth=0.8, ax=ax)
     share = (Xvar[var] >= 1000).mean()
-    ax.set_title(f"{var.strip()}: {share:.0%} of entries are corrupted")
+    ax.set_title(f"{var.strip()}\n{share:.0%} of entries are corrupted")
     ax.xaxis.set_major_formatter(BILLIONS)
-    ax.set_xlabel("Reported value (genuine values lie between 0 and 1, inside the first bar)")
-    ax.set_ylabel("Number of companies")
-    plt.tight_layout(rect=(0, 0.04, 1, 1))
-    fig.text(0.01, 0.01, SOURCE, fontsize=8, color=MUTED)
-    plt.show()
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+axes[0].set_ylabel("Number of companies")
+fig.supxlabel("Reported value (genuine values lie between 0 and 1, inside the first bar)", fontsize=10, color=INK_2)
+fig.suptitle("Three variables with over 50% corrupted entries", x=0.01, ha='left', fontsize=14, fontweight='semibold')
+plt.tight_layout(rect=(0, 0.04, 1, 1))
+fig.text(0.01, 0.01, SOURCE, fontsize=8, color=MUTED)
+plt.show()
 # %%
 
 #Too many corrupted values to impute, so rather than throw these variables out,
@@ -297,8 +300,8 @@ Xvarqt = Xvar_scaled.copy()
 Xvarqt[cont_cols] = qt.fit_transform(Xvar_scaled[cont_cols])
 
 #Export the data
-#Xvarqt.to_csv('X_Clean.csv')
-#Yvar.to_csv('Y_Clean.csv')
+Xvarqt.to_csv('X_Clean.csv')
+Yvar.to_csv('Y_Clean.csv')
 # %%
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
@@ -357,6 +360,8 @@ plt.show()
 #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
 # %%
 
+#==============================================================================================================================================================================================================================================================================================================================================================================
+#OUTLIER DETECTION
 
 
 
