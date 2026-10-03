@@ -67,6 +67,191 @@ Xvar = df2.drop([" Net Income Flag","Bankrupt?"], axis=1)
 #Response variable: 1 = bankrupt, 0 = not bankrupt
 Yvar = df2["Bankrupt?"]
 # %%
+#==============================================================================================================================================================================================================================================================================================================================================================================
+#OUTLIER DETECTION (on the raw data, before any cleaning: this is how the corrupted values were found)
+
+cr = Yvar.mean() #Share of bankrupt companies
+print(f'Contamination rate to \napply: {round(100*cr,2)}%')
+# %%
+
+
+# %% 07 | Model 1 - Isolation Forest
+#Set seed for reproducability
+seed = 45735476
+#Fit isolation forest, unsupervised
+clf = IForest(contamination = cr,random_state=seed)
+clf.fit(Xvar)
+
+# %% 08 | Model 2 - ECOD with the same contamination rate
+
+clf2 = ECOD(contamination = cr)
+clf2.fit(Xvar)
+
+# %% 09 | Model 3 - COPOD with the same contamination rate
+#Same for COPOD
+clf3 = COPOD(contamination=cr)
+clf3.fit(Xvar)
+
+# %% 10 | Predicted labels from all three models
+#Our labels are either 1
+#for outlier or 0 for inlier
+Ypred = clf.labels_
+Ypred2 = clf2.labels_
+Ypred3 = clf3.labels_
+
+# %% 11 | Consensus mask - rows all three models agree on
+#Stacking them together
+#going to find out where does
+#each ML all flag an anomaly at once
+#To reduce any bias
+anomalies = (
+    (Ypred==1) &
+    (Ypred2==1) &
+    (Ypred3==1)
+)
+
+# %% 12 | Subsetting the consensus anomalies
+#X and Y variables for where all
+#3 models agreed that row_i is a row
+#that must be flagged as a anomaly
+Xanon = Xvar[anomalies]
+Yanon = Yvar[anomalies]
+
+# %% 13 | Summary of the flagged rows
+print(f"Out of the total {len(Yanon)} rows\nflagged as anomalies  \n{np.sum(Yanon)} are positive bankruptcies and {len(Yanon)-np.sum(Yanon)}\nare negative for any bankruptcy,\nthese {len(Yanon)-np.sum(Yanon)} 'outliers' must be checked for\npotential mis-imputation, and the other\n{np.sum(Yanon)} rows must be scrutinised as to what\nexactly are causing the bankruptcies.")
+
+#How many rows to every
+#ML flag as anomaly
+#turns out to be 2%
+#close to original class
+#imbalance being 3%
+
+print(f"We got {len(Xanon)} rows\nflagged as anomalies out of the total \n{len(Xvar)} rows in the data. which is {round(100*len(Xanon)/len(Xvar),2)}%")
+
+# %%
+mu = Xvar.mean()
+s = Xvar.std()
+#The absolute Z score, because it is
+#A question of now whether the movement
+#in centrality is caused by an extremely 
+# large outlier or extremely small outlier
+#But whether there is an outlier at all
+# |Z| =|(X-mu)/sigma|
+Zscoreord = np.abs((Xvar - mu)/s)
+#Z score for anomaly/outlier vals
+ordanon = Zscoreord[anomalies].mean()
+
+# %% Absolute Z scores, inlier group mean
+#Z score for non-anomaly vals
+ordinline = Zscoreord[~anomalies].mean()
+
+Zlistfinal_unsorted_df = (ordanon/ordinline).reset_index()
+Zlistfinal_unsorted_df.columns = ['Variable', 'Zratio']
+Zlistfinal_df = Zlistfinal_unsorted_df.sort_values(by='Zratio', ascending=False)
+# %% 
+#plot Zlistfinal_df to see where there is a strong drop in Z scores
+#And it is flat within 4 variables, entailing potential duplication
+plt.figure(figsize=(12,6))
+plt.bar(Zlistfinal_df['Variable'], Zlistfinal_df['Zratio'])
+plt.title("Z ratio of anomaly vs inlier group means")
+plt.xlabel("Variable")
+plt.ylabel("Z ratio (anomaly mean / inlier mean)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+# %%
+#Looking at the plot above:
+#Variables Fixed Assets to Assets, 
+# and Current Ratio have the exact same Zratio
+
+#Variables Net Value Growth Rate, and Revenue per person have the exact same Zratio
+#BUT... Revenue Per Share (Yuan ¥) is almost the exact same
+
+# %%
+identical_vars1 = df2[[' Fixed Assets to Assets', ' Current Ratio']].copy()
+identical_vars1_corr = identical_vars1.corr()
+# %%
+identical_vars1.max()
+#location of maximum value in the dataframe
+identical_vars1.idxmax()
+# %%
+#Fixed Assets to Assets at 2344+1=2345
+print(max(Xvar.iloc[2344, :]))
+# %%
+((Xvar.iloc[2344, :]).sort_values(ascending=False)).head(10)
+#The abnormally high values 
+# in row 2344 are here.
+"""Fixed Assets to Assets             8.320000e+09
+Total Asset Growth Rate            7.080000e+09
+Allocation rate per person         3.480000e+09
+Cash/Current Liability             2.090000e+09
+Cash Turnover Rate                 1.300000e+09
+Average Collection Days            1.370000e+08
+Inventory Turnover Rate (times)    9.550000e+07"""
+
+print(max(Xvar.iloc[2499, :]))
+#value is 7130000000.0 which again makes no sense
+#When trying to see if there any of other
+#strange values in the billions
+(Xvar.iloc[2499, :].sort_values(ascending=False)).head(10)
+#The abnormally high values 
+# in row 2499 are here.
+"""Total Asset Growth Rate                7.130000e+09
+Current Ratio                          2.750000e+09
+Cash Turnover Rate                     1.590000e+09
+Current Asset Turnover Rate            6.740000e+08
+Quick Asset Turnover Rate              1.320000e+08
+Inventory Turnover Rate (times)        1.910000e+07"""
+
+
+
+
+#So if we put the two subsets together we see which
+#Variables we have in common.
+
+"""In common (both rows):
+
+Total Asset Growth Rate
+Cash Turnover Rate
+Inventory Turnover Rate (times)
+
+
+Only in row 2344:
+
+Fixed Assets to Assets
+Allocation rate per person
+Cash/Current Liability
+Average Collection Days
+
+
+Only in row 2499:
+
+Current Ratio
+Current Asset Turnover Rate
+Quick Asset Turnover Rate"""
+
+# %%
+#For those variables in common
+#Let's do a matrix scatter plot to see if they are indeed almost identical
+common_Xvar = Xvar[[' Total Asset Growth Rate', ' Cash Turnover Rate', ' Inventory Turnover Rate (times)']]
+sns.pairplot(common_Xvar,corner=True, diag_kind='kde', plot_kws={'alpha':0.5})
+plt.show()
+
+# Cash Turnover Rate', ' Inventory Turnover Rate (times)
+# are extremely skewed to the right
+#Total asset growth rate is bimodal.
+
+#Cash Turnover Rate and Inventory Turnover Rate (times) are almost identical, 
+# but Cash Turnover decays slower.
+
+#Overall it tells us with the 3 key variables that
+# cause all 3 models to flag as outliers, that majority
+# of the outliers are caused by extremely high values 
+# in Total Asset Growth Rate, Cash Turnover Rate, 
+# and Inventory Turnover Rate (times) which occur at a very small
+# frequency.
+
+# %%
 
 #Every genuine value in this dataset is rescaled to 0-1, and no value lies
 #between 1 and 583,000, so anything >= 1000 is a corrupted entry.
@@ -359,11 +544,6 @@ plt.show()
 #FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
 #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
 # %%
-
-#==============================================================================================================================================================================================================================================================================================================================================================================
-#OUTLIER DETECTION
-
-
 
 #==============================================================================================================================================================================================================================================================================================================================================================================
 #MUHAMMAD'S PCA
