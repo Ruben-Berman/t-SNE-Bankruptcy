@@ -297,113 +297,66 @@ Xvarqt = pd.DataFrame(qt.fit_transform(Xvar_scaled),
                       columns=Xvar_scaled.columns,
                       index=Xvar_scaled.index)
 #Export the data
-Xvarqt.to_csv('X_Clean.csv')
-Yvar.to_csv('Y_Clean.csv')
+#Xvarqt.to_csv('X_Clean.csv')
+#Yvar.to_csv('Y_Clean.csv')
 # %%
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
 
 Xvarqt_array = np.array(Xvarqt)
 from sklearn.manifold import TSNE
-X_reduced = TSNE(n_components=2, perplexity=30.0, 
+k=150 #perplexity value, can be changed to see how it affects the results
+X_reduced = TSNE(n_components=2, perplexity=k, 
      early_exaggeration=12.0, 
      learning_rate='auto', 
      max_iter=1000, 
-     n_iter_without_progress=30, 
+     n_iter_without_progress=300, 
      min_grad_norm=1e-07, 
      metric='euclidean', 
      metric_params=None, 
-     init='pca', 
-     verbose=0, 
-     random_state=None, 
+     init='random', 
+     verbose=2, 
+     random_state=45735476, 
      method='barnes_hut', 
-     angle=0.5, 
-     n_jobs=None).fit_transform(Xvarqt_array)
+     angle=0.8, 
+     n_jobs=-1).fit_transform(Xvarqt_array)
+
+
+from sklearn.cluster import DBSCAN
+
+y  = np.ravel(Yvar)
+c1, c2 = X_reduced[:, 0], X_reduced[:, 1]
+clusters = DBSCAN(eps=3, min_samples=10).fit_predict(X_reduced)
+
+g = sns.JointGrid(height=9)
+
+# Contours: one colour per cluster (non-bankrupt only, skipping the DBSCAN noise label -1)
+mask = (y == 0) & (clusters != -1)
+sns.kdeplot(x=c1[mask], y=c2[mask], hue=clusters[mask], palette='Set2',
+            levels=6, fill=True, alpha=0.5, legend=False, ax=g.ax_joint)
+
+# Bankrupt points on top
+g.ax_joint.scatter(c1[y == 1], c2[y == 1], s=60, color='red',
+                   edgecolors='black', linewidths=0.8, zorder=3, label='Bankrupt')
+
+# Histogram along each axis, split by class
+pal = {0: '#2a78d6', 1: 'red'}
+sns.histplot(x=c1, hue=y, palette=pal, bins=50, stat='density', common_norm=False,
+             element='step', legend=False, ax=g.ax_marg_x)
+sns.histplot(y=c2, hue=y, palette=pal, bins=50, stat='density', common_norm=False,
+             element='step', legend=False, ax=g.ax_marg_y)
+
+g.set_axis_labels('t-SNE Component 1', 't-SNE Component 2', fontsize=14)
+g.ax_joint.legend(loc='upper right')
+g.figure.suptitle(f't-SNE Visualization of Bankruptcy Data, perplexity = {k}', fontsize=16, y=1.02)
+plt.show()
 
 
 
 #FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
 #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
-
-
 # %%
 
-
-
-
-
-
-
-
-
-
-
-
-
-#. Given input data 𝑥=(﷐𝑥﷮1﷯,﷐𝑥﷮2﷯,…,﷐𝑥﷮𝑛﷯); choose perplexity k, learning rate 𝜂 and momentum 𝛼﷐𝑙﷯
-#Set  perplexity to 5 learning rate (eta) = 0.001
-PERPLEX, ETA = 5, 0.001
-# %%
-rng = np.random.default_rng(seed=seed) #Random number generator for reproducibility
-indices = rng.choice(len(Xvarqt), size=len(Xvarqt)//8, replace=False) #Randomly shuffle the indices of the dataset
-Random_Xvarqt = Xvarqt.iloc[indices,:] #Randomly shuffle the dataset
-# %%
-#vector X_i = (X_i1, X_i2, ..., X_i,64);
-#Function to compute the pairwise Euclidean distances between all points in the dataset
-def TSNE_ALGO_FASTER(Xvarqt, PERPLEX):
-    X = Xvarqt.to_numpy() #Convert once: indexing a NumPy array is far faster than .iloc
-    n = len(X)
-    p_j_given_i, Distance, Numerator = np.zeros((n, n)), np.zeros((n, n)), np.zeros((n, n))
-
-    #Step 1: distances. d(i,j) = d(j,i), so only compute the upper triangle and copy it
-    for i in range(n):
-        for j in range(i + 1, n):
-            Distance[i, j] = np.sqrt(np.sum((X[i] - X[j])**2))
-            Distance[j, i] = Distance[i, j]
-
-    #Step 2: conditional probabilities, one row (one point i) at a time
-    for i in range(n):
-        Denominator = 0 #Reset for every i: each point has its own denominator
-        for j in range(n):
-            if i != j:
-                Numerator[i, j] = np.exp(-Distance[i, j]**2 / (2 * PERPLEX**2))
-                Denominator += Numerator[i, j]
-        for j in range(n):
-            if i != j:
-                p_j_given_i[i, j] = Numerator[i, j] / Denominator
-    return p_j_given_i
-
-# %%
-P_MATRIX = TSNE_ALGO_FASTER(Xvarqt, PERPLEX)
-# %%
-
-
-
-
-
-
-# %%
-def TSNE_ALGO(Xvarqt, PERPLEX, ETA):
-    indices_i = np.arange(len(Xvarqt))
-    indices_j = np.arange(len(Xvarqt))
-    p_j_given_i, Distance, Numerator = np.zeros((len(Xvarqt), len(Xvarqt))), np.zeros((len(Xvarqt), len(Xvarqt))), np.zeros((len(Xvarqt), len(Xvarqt)))
-    Denominator = 0
-    for i in indices_i:
-           for j in indices_j:
-            if i != j:
-                Xi = Xvarqt.iloc[i,:]
-                Xj = Xvarqt.iloc[j,:]
-                #Compute the Euclidean distance between the two points
-                Distance[i, j] = np.linalg.vector_norm(Xi - Xj)
-                Numerator[i, j] = np.exp(-Distance[i, j]**2 / (2 * PERPLEX**2))
-                Denominator += Numerator[i, j]
-    for i in indices_i:
-        for j in indices_j:
-            if i != j:
-                p_j_given_i[i, j] = Numerator[i, j] / Denominator
-    return p_j_given_i
-
-# %%
 
 
 
