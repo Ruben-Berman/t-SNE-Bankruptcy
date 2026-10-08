@@ -24,12 +24,14 @@ from matplotlib.ticker import FuncFormatter #Shows billion-scale axes as "2bn" i
 
 # %%
 #House style shared by every figure in the report
-SURFACE = '#fcfcfb' #Figure background
-INK = '#0b0b0b' #Titles
-INK_2 = '#52514e' #Axis labels
-MUTED = '#898781' #Tick labels and source notes
-GRID = "#e3e2db" #Gridlines
-BLUE = "#386399" #Single colour for histograms and scatter points
+SURFACE = '#000000' #Figure background (black)
+INK = '#ffffff' #Titles
+INK_2 = '#f2f2f0' #Axis labels
+MUTED = '#c9c8c3' #Tick labels and source notes
+GRID = "#2e2e2b" #Gridlines
+BLUE = "#6b9be0" #Single colour for histograms and scatter points (lighter so it shows on black)
+YELLOW = '#e3a33b' #Second series colour
+RED = '#ef5350' #Bankrupt / third series colour (brighter than pure dark red)
 SOURCE = 'Source: Taiwan Economic Journal, 1999-2009'
 
 plt.rcParams.update({
@@ -40,7 +42,8 @@ plt.rcParams.update({
     'axes.titlesize': 13, 'axes.titleweight': 'semibold', 'axes.titlelocation': 'left', 'axes.titlepad': 12,
     'axes.labelsize': 10, 'xtick.color': MUTED, 'ytick.color': MUTED,
     'xtick.labelsize': 9, 'ytick.labelsize': 9,
-    'axes.edgecolor': '#c3c2b7', 'axes.linewidth': 0.8,
+    'axes.edgecolor': '#8a8984', 'axes.linewidth': 0.8,
+    'axes.prop_cycle': plt.cycler(color=[BLUE, YELLOW, RED, '#5cc98a', '#b48be8', '#4fc3d9']), #Bright defaults
     'axes.spines.top': False, 'axes.spines.right': False,
     'axes.grid': True, 'axes.grid.axis': 'y', 'grid.color': GRID, 'grid.linewidth': 0.6,
     'axes.axisbelow': True, 'legend.frameon': False,
@@ -50,11 +53,21 @@ plt.rcParams.update({
 BILLIONS = FuncFormatter(lambda v, _: f"{v/1e9:.0f}bn")
 
 #Diverging colour map for correlations: red = negative, grey = none, blue = positive
-CORR_CMAP = LinearSegmentedColormap.from_list('corr', ['#a32d2c', '#e34948', '#f0efec', '#2a78d6', '#104281'])
+#(bright ends and a dark grey middle so it reads on the black background)
+CORR_CMAP = LinearSegmentedColormap.from_list('corr', ['#ff6b6b', '#b8403f', '#3a3a38', '#3f7fd0', '#8fc1ff'])
 
 # %%
+#Folder this script is in, so data.csv is found wherever the code is run from
+#(__file__ when run as a script, __vsc_ipynb_file__ in the VS Code interactive window,
+#otherwise the current folder; the first one that actually contains data.csv is used)
+from pathlib import Path
+folders = [Path(globals()[name]).resolve().parent
+           for name in ('__file__', '__vsc_ipynb_file__') if name in globals()] + [Path.cwd()]
+HERE = next((f for f in folders if (f / 'data.csv').exists()), Path.cwd())
+print('Reading data from:', HERE)
+
 #Import the Taiwanese bankruptcy dataset
-df = pd.read_csv('data.csv')
+df = pd.read_csv(HERE / 'data.csv')
 # %%
 #Work on a copy so the original df stays untouched
 df2 = df.copy()
@@ -152,7 +165,7 @@ Zlistfinal_df = Zlistfinal_unsorted_df.sort_values(by='Zratio', ascending=False)
 #plot Zlistfinal_df to see where there is a strong drop in Z scores
 #And it is flat within 4 variables, entailing potential duplication
 plt.figure(figsize=(12,6))
-plt.bar(Zlistfinal_df['Variable'], Zlistfinal_df['Zratio'])
+plt.bar(Zlistfinal_df['Variable'], Zlistfinal_df['Zratio'], color=BLUE)
 plt.title("Z ratio of anomaly vs inlier group means")
 plt.xlabel("Variable")
 plt.ylabel("Z ratio (anomaly mean / inlier mean)")
@@ -234,7 +247,8 @@ Quick Asset Turnover Rate"""
 #For those variables in common
 #Let's do a matrix scatter plot to see if they are indeed almost identical
 common_Xvar = Xvar[[' Total Asset Growth Rate', ' Cash Turnover Rate', ' Inventory Turnover Rate (times)']]
-sns.pairplot(common_Xvar,corner=True, diag_kind='kde', plot_kws={'alpha':0.5})
+sns.pairplot(common_Xvar,corner=True, diag_kind='kde',
+             plot_kws={'alpha':0.5, 'color': BLUE, 'edgecolor': 'none'}, diag_kws={'color': BLUE, 'fill': True})
 plt.show()
 
 # Cash Turnover Rate', ' Inventory Turnover Rate (times)
@@ -485,8 +499,8 @@ Xvarqt = Xvar_scaled.copy()
 Xvarqt[cont_cols] = qt.fit_transform(Xvar_scaled[cont_cols])
 
 #Export the data
-Xvarqt.to_csv('X_Clean.csv')
-Yvar.to_csv('Y_Clean.csv')
+Xvarqt.to_csv(HERE / 'X_Clean.csv')
+Yvar.to_csv(HERE / 'Y_Clean.csv')
 # %%
 #============================================================================================================================================================================================================================================================================================================================================================================
 #RUBEN'S t-SNE
@@ -524,11 +538,11 @@ sns.kdeplot(x=c1[mask], y=c2[mask], hue=clusters[mask], palette='Set2',
             levels=6, fill=True, alpha=0.5, legend=False, ax=g.ax_joint,thresh=0.075)
 
 # Bankrupt points on top
-g.ax_joint.scatter(c1[y == 1], c2[y == 1], s=60, color='red',
-                   edgecolors='black', linewidths=0.8, zorder=3, label='Bankrupt')
+g.ax_joint.scatter(c1[y == 1], c2[y == 1], s=60, color=RED,
+                   edgecolors='white', linewidths=0.6, zorder=3, label='Bankrupt')
 
 # Histogram along each axis, split by class
-pal = {0: '#2a78d6', 1: 'red'}
+pal = {0: BLUE, 1: RED}
 sns.histplot(x=c1, hue=y, palette=pal, bins=50, stat='density', common_norm=False,
              element='step', legend=False, ax=g.ax_marg_x)
 sns.histplot(y=c2, hue=y, palette=pal, bins=50, stat='density', common_norm=False,
@@ -577,7 +591,7 @@ ax1.set_title('KL divergence (lower = better fit)')
 ax1.set_xlabel('Perplexity')
 ax1.set_ylabel('KL divergence')
 
-for col, c in zip(['T_5', 'T_15', 'T_50'], ['#2a78d6', '#e3a33b', '#a32d2c']):
+for col, c in zip(['T_5', 'T_15', 'T_50'], [BLUE, YELLOW, RED]):
     ax2.plot(tsne_scores['Perplexity'], tsne_scores[col], marker='o', color=c,
              label=f"k = {col.split('_')[1]}")
 ax2.axvline(perp, color=MUTED, ls='--', lw=1)
