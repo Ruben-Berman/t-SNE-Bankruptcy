@@ -493,8 +493,8 @@ Yvar.to_csv('Y_Clean.csv')
 
 Xvarqt_array = np.array(Xvarqt)
 from sklearn.manifold import TSNE
-k=150 #perplexity value, can be changed to see how it affects the results
-X_reduced = TSNE(n_components=2, perplexity=k, 
+perp=100 #perplexity value, can be changed to see how it affects the results
+X_reduced = TSNE(n_components=2, perplexity=perp, 
      early_exaggeration=12.0, 
      learning_rate='auto', 
      max_iter=1000, 
@@ -509,19 +509,19 @@ X_reduced = TSNE(n_components=2, perplexity=k,
      angle=0.8, 
      n_jobs=-1).fit_transform(Xvarqt_array)
 
-
+# %%
 from sklearn.cluster import DBSCAN
 
 y  = np.ravel(Yvar)
 c1, c2 = X_reduced[:, 0], X_reduced[:, 1]
 clusters = DBSCAN(eps=3, min_samples=10).fit_predict(X_reduced)
-
+clusters = np.where(clusters == -1, -1, clusters + 1) #Number clusters from 1; noise stays -1
 g = sns.JointGrid(height=9)
 
 # Contours: one colour per cluster (non-bankrupt only, skipping the DBSCAN noise label -1)
 mask = (y == 0) & (clusters != -1)
 sns.kdeplot(x=c1[mask], y=c2[mask], hue=clusters[mask], palette='Set2',
-            levels=6, fill=True, alpha=0.5, legend=False, ax=g.ax_joint)
+            levels=6, fill=True, alpha=0.5, legend=False, ax=g.ax_joint,thresh=0.075)
 
 # Bankrupt points on top
 g.ax_joint.scatter(c1[y == 1], c2[y == 1], s=60, color='red',
@@ -536,9 +536,69 @@ sns.histplot(y=c2, hue=y, palette=pal, bins=50, stat='density', common_norm=Fals
 
 g.set_axis_labels('t-SNE Component 1', 't-SNE Component 2', fontsize=14)
 g.ax_joint.legend(loc='upper right')
-g.figure.suptitle(f't-SNE Visualization of Bankruptcy Data, perplexity = {k}', fontsize=16, y=1.02)
-plt.show()
+g.figure.suptitle(f't-SNE Visualization of Bankruptcy Data, perplexity = {perp}', fontsize=16, y=1.02)
 
+#Cluster number at the centre of each cluster (noise -1 skipped)
+for cl in np.unique(clusters[clusters != -1]):
+    cx, cy = np.median(c1[clusters == cl]), np.median(c2[clusters == cl])
+    g.ax_joint.text(cx, cy, str(cl), ha='center', va='center',
+                    fontsize=9, weight='bold', color='black',
+                    bbox=dict(boxstyle='circle,pad=0.2', fc='white', ec='none', alpha=0.8))
+
+
+plt.show()
+# %%
+#%%
+#KL divergence and trustworthiness across perplexities
+from sklearn.manifold import trustworthiness
+
+perplexities = [5, 15, 30, 50, 100, 150, 200, 300]
+rows = []
+for p in perplexities:
+    tsne = TSNE(n_components=2, perplexity=p, early_exaggeration=12.0, learning_rate='auto',
+                max_iter=1000, init='random', random_state=45735476,
+                method='barnes_hut', angle=0.8, n_jobs=-1)
+    emb = tsne.fit_transform(Xvarqt_array)
+    rows.append({'Perplexity': p,
+                 'KL': tsne.kl_divergence_,
+                 'T_5': trustworthiness(Xvarqt_array, emb, n_neighbors=5),
+                 'T_15': trustworthiness(Xvarqt_array, emb, n_neighbors=15),
+                 'T_50': trustworthiness(Xvarqt_array, emb, n_neighbors=50)})
+    print(f"perplexity {p} done")
+
+tsne_scores = pd.DataFrame(rows)
+print(tsne_scores.round(4))
+
+#%%
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+ax1.plot(tsne_scores['Perplexity'], tsne_scores['KL'], marker='o', color=BLUE)
+ax1.set_title('KL divergence (lower = better fit)')
+ax1.set_xlabel('Perplexity')
+ax1.set_ylabel('KL divergence')
+
+for col, c in zip(['T_5', 'T_15', 'T_50'], ['#2a78d6', '#e3a33b', '#a32d2c']):
+    ax2.plot(tsne_scores['Perplexity'], tsne_scores[col], marker='o', color=c,
+             label=f"k = {col.split('_')[1]}")
+ax2.axvline(perp, color=MUTED, ls='--', lw=1)
+ax2.set_title('Trustworthiness (higher = better)')
+ax2.set_xlabel('Perplexity')
+ax2.set_ylabel('Trustworthiness')
+ax2.legend()
+
+fig.suptitle('t-SNE quality across perplexity values', fontsize=15, x=0.01, ha='left')
+fig.tight_layout()
+plt.show()
+#%%
+#Bankruptcy rate per DBSCAN cluster, excluding noise points (-1)
+keep = clusters != -1
+cluster_summary = (pd.DataFrame({'Cluster': clusters[keep], 'Bankrupt': y[keep]})
+                   .groupby('Cluster')['Bankrupt']
+                   .agg(Companies='size', Bankrupt='sum', Pct_bankrupt='mean'))
+cluster_summary['Pct_bankrupt'] = (cluster_summary['Pct_bankrupt'] * 100).round(2)
+cluster_summary['Share_of_all_bankrupt'] = (cluster_summary['Bankrupt'] / y.sum() * 100).round(1)
+cluster_summary['Lift'] = (cluster_summary['Pct_bankrupt'] / (y.mean() * 100)).round(2)
+print(cluster_summary.sort_values('Pct_bankrupt', ascending=False))
 
 
 #FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
