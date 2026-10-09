@@ -562,7 +562,7 @@ for cl in np.unique(clusters[clusters != -1]):
 
 plt.show()
 # %%
-#%%
+#%% (WARNING: this cell takes a long time to run, approx. 10 minutes on a laptop)
 #KL divergence and trustworthiness across perplexities
 from sklearn.manifold import trustworthiness
 
