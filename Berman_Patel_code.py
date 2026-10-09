@@ -563,7 +563,7 @@ for cl in np.unique(clusters[clusters != -1]):
 plt.show()
 # %%
 #%% (WARNING: this cell takes a long time to run, approx. 10 minutes on a laptop)
-#KL divergence and trustworthiness across perplexities
+#(WARNING: LONG RUNNING) KL divergence and trustworthiness across perplexities
 from sklearn.manifold import trustworthiness
 
 perplexities = [5, 15, 30, 50, 100, 150, 200, 300]
@@ -617,10 +617,11 @@ print(cluster_summary.sort_values('Pct_bankrupt', ascending=False))
 
 #FROM: https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
 #https://github.com/scikit-learn/scikit-learn/blob/afe5bcd80/sklearn/manifold/_t_sne.py
-# %%
+
 
 #==============================================================================================================================================================================================================================================================================================================================================================================
 #MUHAMMAD'S PCA
+# %%
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -716,6 +717,7 @@ for x in range(2):
 
 # %%
 #EXTRA: 3D Plot of the t-SNE results, using the first 3 components instead of 2
+#This is AI Generated and must be openly declared as such.
 # %%
 X_reduced3 = TSNE(n_components=3, perplexity=perp,
      early_exaggeration=12.0,
@@ -772,5 +774,70 @@ for h in leg.legend_handles: h.set_alpha(1) #Solid legend markers even though th
 ax.set_title(f'3D t-SNE coloured by DBSCAN cluster, perplexity = {perp}')
 plt.tight_layout()
 plt.show()
+
+# %%
+#3D plot of t-SNE loaded onto browser, so you can rotate it interactively
+# %%
+#Interactive 3D t-SNE in the browser, coloured by DBSCAN cluster
+import plotly.graph_objects as go
+
+yb = np.ravel(Yvar) #0/1 bankruptcy labels (y gets overwritten in the PCA section)
+cluster_ids = np.unique(clusters[clusters != -1])
+cluster_cols = dict(zip(cluster_ids, sns.color_palette('Set2', len(cluster_ids)).as_hex()))
+
+def pts(xyz, sel):
+    return dict(x=xyz[sel, 0], y=xyz[sel, 1], z=xyz[sel, 2])
+
+fig_tsne = go.Figure()
+for cl in cluster_ids:
+    sel = (clusters == cl) & (yb == 0)
+    #Faint, larger copy underneath for a glow effect
+    fig_tsne.add_trace(go.Scatter3d(**pts(X_reduced3, sel), mode='markers', hoverinfo='skip', showlegend=False,
+                                    legendgroup=f'c{cl}', marker=dict(size=7, color=cluster_cols[cl], opacity=0.04)))
+    fig_tsne.add_trace(go.Scatter3d(**pts(X_reduced3, sel), mode='markers', name=f'Cluster {cl}', legendgroup=f'c{cl}',
+                                    marker=dict(size=2.5, color=cluster_cols[cl], opacity=0.5)))
+fig_tsne.add_trace(go.Scatter3d(**pts(X_reduced3, (clusters == -1) & (yb == 0)), mode='markers', name='Noise',
+                                marker=dict(size=2, color='#555555', opacity=0.3)))
+fig_tsne.add_trace(go.Scatter3d(**pts(X_reduced3, yb == 1), mode='markers', name='Bankrupt',
+                                marker=dict(size=4.5, color=RED, opacity=1, line=dict(color='white', width=1))))
+
+axis_style = dict(backgroundcolor='black', gridcolor=GRID, zerolinecolor=GRID, color=MUTED, showbackground=True)
+fig_tsne.update_layout(
+    template='plotly_dark', paper_bgcolor='black', font=dict(color='white'),
+    title=dict(text=f'3D t-SNE coloured by DBSCAN cluster, perplexity = {perp}', y=0.97),
+    scene=dict(xaxis=dict(title='t-SNE 1', **axis_style),
+               yaxis=dict(title='t-SNE 2', **axis_style),
+               zaxis=dict(title='t-SNE 3', **axis_style),
+               aspectmode='cube', camera=dict(eye=dict(x=1.7, y=1.7, z=1.1))),
+    margin=dict(l=0, r=0, t=60, b=0), legend=dict(itemsizing='constant', y=0.9))
+fig_tsne.show(renderer='browser')
+
+# %%
+# %%
+#Interactive 3D PCA in the browser, coloured by bankruptcy
+import plotly.graph_objects as go
+
+yb = np.ravel(Yvar)
+evr = pca.explained_variance_ratio_ * 100 #% of variance per component, for the axis titles
+
+def pts(xyz, sel):
+    return dict(x=xyz[sel, 0], y=xyz[sel, 1], z=xyz[sel, 2])
+
+fig_pca = go.Figure()
+fig_pca.add_trace(go.Scatter3d(**pts(components, yb == 0), mode='markers', name='Not bankrupt',
+                               marker=dict(size=2.5, color=BLUE, opacity=0.3)))
+fig_pca.add_trace(go.Scatter3d(**pts(components, yb == 1), mode='markers', name='Bankrupt',
+                               marker=dict(size=4.5, color=RED, opacity=1, line=dict(color='white', width=1))))
+
+axis_style = dict(backgroundcolor='black', gridcolor=GRID, zerolinecolor=GRID, color=MUTED, showbackground=True)
+fig_pca.update_layout(
+    template='plotly_dark', paper_bgcolor='black', font=dict(color='white'),
+    title=dict(text='3D PCA of the bankruptcy data (first three components)', y=0.97),
+    scene=dict(xaxis=dict(title=f'PC1 ({evr[0]:.1f}%)', **axis_style),
+               yaxis=dict(title=f'PC2 ({evr[1]:.1f}%)', **axis_style),
+               zaxis=dict(title=f'PC3 ({evr[2]:.1f}%)', **axis_style),
+               aspectmode='cube', camera=dict(eye=dict(x=1.7, y=1.7, z=1.1))),
+    margin=dict(l=0, r=0, t=60, b=0), legend=dict(itemsizing='constant', y=0.9))
+fig_pca.show(renderer='browser')
 
 # %%
