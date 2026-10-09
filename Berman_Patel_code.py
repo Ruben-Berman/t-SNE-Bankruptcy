@@ -621,8 +621,156 @@ print(cluster_summary.sort_values('Pct_bankrupt', ascending=False))
 
 #==============================================================================================================================================================================================================================================================================================================================================================================
 #MUHAMMAD'S PCA
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import os
+os.makedirs('Figures', exist_ok=True)
+# %%
+X = pd.read_csv('X_Clean.csv' , index_col = 0)
+y = pd.read_csv('Y_Clean.csv')['Bankrupt?']
+print(y.shape)
+print(X.columns)
+# %%
+from sklearn.decomposition import PCA
+pca = PCA(n_components=64, random_state=45735476, svd_solver='full')
+components = pca.fit_transform(X)
 
+#Number of components to be retained using Kaiser's Criterion
+#Use the mean eigenvalue
+thres = sum(pca.explained_variance_)/64
+
+n = 0
+for i in range(pca.explained_variance_.shape[0]):
+    if pca.explained_variance_[i] > thres:
+        print (pca.explained_variance_[i])
+        n = n + 1
+
+print(n, 'components are to be retained.', 'with total variance explained of: ', sum(pca.explained_variance_ratio_[:n])*100, '%')
+
+plt.figure(figsize=(10, 8))
+plt.bar(range(1,len(pca.explained_variance_ratio_)+1), pca.explained_variance_ratio_)
+plt.ylabel('Explained Variance')
+plt.xlabel('Principal Components')
+plt.plot(range(1,len(pca.explained_variance_ratio_)+1),
+         np.cumsum(pca.explained_variance_ratio_),
+         color='blue',
+         label='Cumulative Explained Variance')
+plt.axvline(x=n, color='r', label = 'Cutoff for variables retained')
+plt.legend(loc='best')
+plt.savefig('Figures/Cumulative Explained Variance.png', dpi=300)
+plt.show()
+# %%
+#Here we create the full on biplot.
+idx = np.argsort(y)
+def biplot(score, coeff, labels=None):
+    xs = score[:, 0]
+    ys = score[:, 1]
+    plt.figure(figsize=(10, 8))
+    plt.scatter(xs, ys, c=y, cmap='coolwarm')
+    plt.colorbar(label='Bankruptcies')
+
+    lengths = np.sqrt(coeff[:, 0]**2 + coeff[:, 1]**2)
+    top = np.argsort(lengths)[-3:]
+
+    factor = max(np.abs(xs).max(), np.abs(ys).max()) / lengths.max()
+
+    for j in top:
+
+        plt.arrow(0, 0, coeff[j, 0]*factor, coeff[j, 1]*factor, color='w', alpha=0.5, head_width=0.1, head_length=0.1)
+        plt.text(coeff[j, 0] * factor, coeff[j, 1] * factor, labels[j], color='w', horizontalalignment='left', verticalalignment='center')
+
+
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.title("Biplot")
+    plt.savefig('Figures/PCA Biplot.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+biplot(components, pca.components_.T, X.columns)
+# %%
+#3D plot to see if that helps to better visualize the data
+from mpl_toolkits.mplot3d import Axes3D
+
+fig = plt.figure(figsize=(10, 12))
+ax = fig.add_subplot(111, projection='3d')
+
+scatter_3d =ax.scatter(components[idx, 0], components[idx, 1], components[idx, 2], c=y.iloc[idx], cmap='coolwarm')
+
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
+ax.set_zlabel('PC3')
+
+plt.colorbar(scatter_3d, label='Bankruptcies', shrink=0.7)
+plt.savefig('Figures/3D Exploratory Plot.png', dpi=300)
+plt.show()
+# %%
+#Loadings to see which factors influence the most here.
+for x in range(2):
+    loading_scores = pd.Series(pca.components_[x], index = X.columns)
+    sorted_loading_scores = loading_scores.abs().sort_values(ascending = False)
+    top_10_factors = sorted_loading_scores.index[:10].values
+    print( 'Most influential factors for PC', x+1,'\n', loading_scores[top_10_factors] , '\n\n')
 
 #=============================================================================================================================================================================================================================================================================================================================================================================
+
+# %%
+#EXTRA: 3D Plot of the t-SNE results, using the first 3 components instead of 2
+# %%
+X_reduced3 = TSNE(n_components=3, perplexity=perp,
+     early_exaggeration=12.0,
+     learning_rate='auto',
+     max_iter=1000,
+     n_iter_without_progress=300,
+     min_grad_norm=1e-07,
+     metric='euclidean',
+     init='random',
+     verbose=2,
+     random_state=45735476,
+     method='barnes_hut',
+     angle=0.8,
+     n_jobs=-1).fit_transform(Xvarqt_array)
+# %%
+fig = plt.figure(figsize=(11, 9))
+ax = fig.add_subplot(projection='3d')
+
+#Same Set2 colours as the 2D contours, so cluster 1 is the same colour in both plots
+cluster_ids = np.unique(clusters[clusters != -1])
+cluster_cols = dict(zip(cluster_ids, sns.color_palette('Set2', len(cluster_ids))))
+
+#Non-bankrupt points, one colour per cluster
+for cl in cluster_ids:
+    pts = X_reduced3[(clusters == cl) & (y == 0)]
+    ax.scatter(*pts.T, s=4, color=cluster_cols[cl], alpha=0.3, label=f'Cluster {cl}')
+
+#Noise points (-1) in faint grey
+noise = X_reduced3[(clusters == -1) & (y == 0)]
+ax.scatter(*noise.T, s=3, color=MUTED, alpha=0.1, label='Noise')
+
+#Bankrupt points on top
+ax.scatter(*X_reduced3[y == 1].T, s=35, color=RED, edgecolors='white', linewidths=0.4,
+           alpha=1, label='Bankrupt', depthshade=False)
+
+#Cluster number at the centre of each cluster
+for cl in cluster_ids:
+    cx, cy, cz = np.median(X_reduced3[clusters == cl], axis=0)
+    ax.text(cx, cy, cz, str(cl), fontsize=10, weight='bold', color='black', ha='center', va='center',
+            bbox=dict(boxstyle='circle,pad=0.2', fc='white', ec='none', alpha=0.8), zorder=10)
+
+#Black panes and dim gridlines (3D axes ignore the facecolor in rcParams)
+for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+    axis.set_pane_color((0, 0, 0, 1))
+    axis.pane.set_edgecolor(GRID)
+    axis._axinfo['grid']['color'] = GRID
+
+ax.set_xlabel('t-SNE Component 1', labelpad=8)
+ax.set_ylabel('t-SNE Component 2', labelpad=8)
+ax.set_zlabel('t-SNE Component 3', labelpad=8)
+ax.view_init(elev=20, azim=45)
+leg = ax.legend(loc='upper right', markerscale=3)
+for h in leg.legend_handles: h.set_alpha(1) #Solid legend markers even though the points are faint
+ax.set_title(f'3D t-SNE coloured by DBSCAN cluster, perplexity = {perp}')
+plt.tight_layout()
+plt.show()
 
 # %%
