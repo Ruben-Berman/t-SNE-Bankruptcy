@@ -53,7 +53,7 @@ Several ratio variables that should lie between 0 and 1 contain values in the bi
 - DBSCAN (`eps = 3`, `min_samples = 10`) applied to the 2D embedding, with clusters numbered from 1 and noise labelled -1
 - Bankruptcy rate calculated per cluster, leaving out noise points
 - Perplexity sweep over 5, 15, 30, 50, 100, 150, 200 and 300, comparing KL divergence and trustworthiness at k = 5, 15 and 50
-- Cluster profiling: medians compared with Cliff's delta, and significance tested with Mann-Whitney U tests, Holm-corrected
+
 
 ### 5. PCA
 
